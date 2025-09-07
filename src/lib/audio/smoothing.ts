@@ -54,7 +54,7 @@ export class ChordSmoother {
     let bestChord = 'N/C';
     let bestScore = 0;
     
-    for (const [chord, count] of chordCounts.entries()) {
+    Array.from(chordCounts.entries()).forEach(([chord, count]) => {
       const avgConfidence = (confidenceWeights.get(chord) || 0) / count;
       const score = count * avgConfidence;
       
@@ -62,7 +62,7 @@ export class ChordSmoother {
         bestScore = score;
         bestChord = chord;
       }
-    }
+    });
     
     return bestChord;
   }

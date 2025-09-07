@@ -1,4 +1,17 @@
-import { ChromaWorkerInput, ChromaWorkerOutput } from '../../workers/chroma.worker';
+// Define interfaces inline to avoid importing from .worker.ts file
+export interface ChromaWorkerInput {
+  audioData: Float32Array;
+  sampleRate: number;
+  frameSize: number;
+  hopSize: number;
+  timestamp: number;
+}
+
+export interface ChromaWorkerOutput {
+  chroma: number[];
+  timestamp: number;
+  confidence: number;
+}
 
 export class ChromaWorkerClient {
   private worker: Worker | null = null;

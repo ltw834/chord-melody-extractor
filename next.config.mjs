@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
+  trailingSlash: true,
+  basePath: process.env.NODE_ENV === 'production' ? '/chord-melody-extractor' : '',
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/chord-melody-extractor/' : '',
+  images: {
+    unoptimized: true,
+  },
   experimental: {
     esmExternals: 'loose',
   },
@@ -16,20 +23,6 @@ const nextConfig = {
     }
 
     return config;
-  },
-  // PWA settings
-  async headers() {
-    return [
-      {
-        source: '/manifest.json',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/manifest+json',
-          },
-        ],
-      },
-    ];
   },
 };
 

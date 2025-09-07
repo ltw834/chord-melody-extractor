@@ -203,25 +203,24 @@ export default function HomePage() {
     const updateInterval = 100; // Update every 100ms
     
     const update = () => {
-      setCurrentTime(prev => {
-        const newTime = prev + updateInterval / 1000;
-        
-        if (newTime >= duration) {
-          setPlaying(false);
-          return duration;
-        }
-        
-        // Update current chord
-        const segment = segments.find(
-          seg => newTime >= seg.startTime && newTime < seg.endTime
-        );
-        
-        if (segment) {
-          setCurrentChord(segment.chord, segment.confidence);
-        }
-        
-        return newTime;
-      });
+      const newTime = currentTime + updateInterval / 1000;
+      
+      if (newTime >= duration) {
+        setPlaying(false);
+        setCurrentTime(duration);
+        return;
+      }
+      
+      setCurrentTime(newTime);
+      
+      // Update current chord
+      const segment = segments.find(
+        seg => newTime >= seg.startTime && newTime < seg.endTime
+      );
+      
+      if (segment) {
+        setCurrentChord(segment.chord, segment.confidence);
+      }
       
       if (isPlaying) {
         playbackTimeoutRef.current = setTimeout(update, updateInterval);
