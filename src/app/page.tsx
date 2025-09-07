@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { BigListenButton } from '@/components/BigListenButton';
 import { ChordTile } from '@/components/ChordTile';
 import { ConfidenceRing } from '@/components/ConfidenceRing';
 import { Timeline, TimelineSegment } from '@/components/Timeline';
@@ -19,11 +17,8 @@ import { formatTime } from '@/lib/utils/time';
 export default function HomePage() {
   const {
     // State
-    isListening,
     isProcessing,
     processingProgress,
-    hasPermission,
-    audioLevel,
     error,
     currentChord,
     currentConfidence,
@@ -37,11 +32,8 @@ export default function HomePage() {
     uploadedFile,
     
     // Actions
-    setListening,
     setProcessing,
     setProcessingProgress,
-    setPermission,
-    setAudioLevel,
     setError,
     setCurrentChord,
     addSegment,
@@ -58,7 +50,6 @@ export default function HomePage() {
     reset
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'listen' | 'upload'>('listen');
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const playbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -82,13 +73,6 @@ export default function HomePage() {
         },
         onTempoDetected: (bpm, confidence) => {
           setDetectedTempo({ bpm, confidence });
-        },
-        onStateChanged: (state) => {
-          setPermission(state.hasPermission);
-          setError(state.error);
-        },
-        onAudioLevel: (level) => {
-          setAudioLevel(level);
         },
         onError: (error) => {
           setError(error);
@@ -117,32 +101,6 @@ export default function HomePage() {
     }
   }, [settings]);
 
-  const handleRequestPermission = async () => {
-    if (!audioProcessorRef.current) return;
-    
-    const granted = await audioProcessorRef.current.requestMicrophonePermission();
-    setPermission(granted);
-  };
-
-  const handleToggleListen = async () => {
-    if (!audioProcessorRef.current) return;
-
-    if (isListening) {
-      audioProcessorRef.current.stopListening();
-      setListening(false);
-    } else {
-      setProcessing(true);
-      clearSegments();
-      setCurrentChord('N/C', 0);
-      
-      const started = await audioProcessorRef.current.startListening();
-      if (started) {
-        setListening(true);
-        setActiveTab('listen');
-      }
-      setProcessing(false);
-    }
-  };
 
   const handleFileSelect = async (file: File) => {
     if (!audioProcessorRef.current) return;
@@ -152,7 +110,6 @@ export default function HomePage() {
     setError(null);
     clearSegments();
     setCurrentChord('N/C', 0);
-    setActiveTab('upload');
 
     try {
       const fileSegments = await audioProcessorRef.current.processFile(file);
@@ -249,7 +206,7 @@ export default function HomePage() {
             Hear it. See it. Play it.
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Live chord recognition from your mic or audio files—fast, clean, on your phone.
+            Chord recognition from your audio files—fast, clean, on your phone.
           </p>
           
           {/* Current Chord Display */}
@@ -258,7 +215,7 @@ export default function HomePage() {
             <ChordTile 
               chord={currentChord}
               confidence={currentConfidence}
-              isActive={isListening || isPlaying}
+              isActive={isPlaying}
               className="scale-110"
             />
           </div>
@@ -284,57 +241,25 @@ export default function HomePage() {
         </div>
 
         {/* Main Interface */}
-        <div className="max-w-4xl mx-auto">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'listen' | 'upload')}>
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="listen">Live Listen</TabsTrigger>
-              <TabsTrigger value="upload">Upload File</TabsTrigger>
-            </TabsList>
+        <div className="max-w-4xl mx-auto space-y-8">
+          <FileDrop
+            onFileSelect={handleFileSelect}
+            onFileRemove={handleFileRemove}
+            selectedFile={uploadedFile}
+            isProcessing={isProcessing}
+            processingProgress={processingProgress}
+          />
 
-            <TabsContent value="listen" className="space-y-8">
-              <div className="text-center">
-                <BigListenButton
-                  isListening={isListening}
-                  hasPermission={hasPermission}
-                  isLoading={isProcessing}
-                  audioLevel={audioLevel}
-                  onToggleListen={handleToggleListen}
-                  onRequestPermission={handleRequestPermission}
-                />
-              </div>
-
-              {segments.length > 0 && (
-                <Timeline
-                  segments={segments}
-                  currentTime={currentTime}
-                  duration={Math.max(duration, Date.now() / 1000)}
-                  isPlaying={isListening}
-                  onSeek={handleSeek}
-                />
-              )}
-            </TabsContent>
-
-            <TabsContent value="upload" className="space-y-8">
-              <FileDrop
-                onFileSelect={handleFileSelect}
-                onFileRemove={handleFileRemove}
-                selectedFile={uploadedFile}
-                isProcessing={isProcessing}
-                processingProgress={processingProgress}
-              />
-
-              {segments.length > 0 && (
-                <Timeline
-                  segments={segments}
-                  currentTime={currentTime}
-                  duration={duration}
-                  isPlaying={isPlaying}
-                  onSeek={handleSeek}
-                  onPlayPause={handlePlayPause}
-                />
-              )}
-            </TabsContent>
-          </Tabs>
+          {segments.length > 0 && (
+            <Timeline
+              segments={segments}
+              currentTime={currentTime}
+              duration={duration}
+              isPlaying={isPlaying}
+              onSeek={handleSeek}
+              onPlayPause={handlePlayPause}
+            />
+          )}
 
           {/* Error Display */}
           {error && (

@@ -14,11 +14,8 @@ export interface AppSettings {
 
 export interface AppState {
   // Audio state
-  isListening: boolean;
   isProcessing: boolean;
   processingProgress: number;
-  hasPermission: boolean;
-  audioLevel: number;
   error: string | null;
   
   // Current chord detection
@@ -42,11 +39,8 @@ export interface AppState {
   uploadedFile: File | null;
   
   // Actions
-  setListening: (listening: boolean) => void;
   setProcessing: (processing: boolean) => void;
   setProcessingProgress: (progress: number) => void;
-  setPermission: (hasPermission: boolean) => void;
-  setAudioLevel: (level: number) => void;
   setError: (error: string | null) => void;
   
   setCurrentChord: (chord: string, confidence: number) => void;
@@ -79,11 +73,8 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const INITIAL_STATE = {
-  isListening: false,
   isProcessing: false,
   processingProgress: 0,
-  hasPermission: false,
-  audioLevel: 0,
   error: null,
   
   currentChord: 'N/C',
@@ -105,11 +96,8 @@ const INITIAL_STATE = {
 export const useAppStore = create<AppState>((set, get) => ({
   ...INITIAL_STATE,
   
-  setListening: (listening) => set({ isListening: listening }),
   setProcessing: (processing) => set({ isProcessing: processing }),
   setProcessingProgress: (progress) => set({ processingProgress: progress }),
-  setPermission: (hasPermission) => set({ hasPermission }),
-  setAudioLevel: (audioLevel) => set({ audioLevel }),
   setError: (error) => set({ error }),
   
   setCurrentChord: (chord, confidence) => set({ 
@@ -157,16 +145,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 // Selectors for better performance
-export const useIsListening = () => useAppStore(state => state.isListening);
 export const useCurrentChord = () => useAppStore(state => ({ 
   chord: state.currentChord, 
   confidence: state.currentConfidence 
 }));
 export const useSegments = () => useAppStore(state => state.segments);
 export const useSettings = () => useAppStore(state => state.settings);
-export const useAudioState = () => useAppStore(state => ({
-  isListening: state.isListening,
-  hasPermission: state.hasPermission,
-  audioLevel: state.audioLevel,
-  error: state.error
-}));

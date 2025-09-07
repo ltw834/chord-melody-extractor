@@ -1,5 +1,4 @@
 import { ChromaWorkerClient } from './workerClient';
-import { MicrophoneManager, MicrophoneState } from './mic';
 import { AudioDecoder } from './decodeAudio';
 import { ChordSmoother } from './smoothing';
 import { KeyDetector } from './keyDetect';
@@ -22,8 +21,6 @@ export interface AudioProcessorCallbacks {
   onSegmentAdded?: (segment: TimelineSegment) => void;
   onKeyDetected?: (key: string, confidence: number, mode: 'major' | 'minor') => void;
   onTempoDetected?: (bpm: number, confidence: number) => void;
-  onStateChanged?: (state: MicrophoneState) => void;
-  onAudioLevel?: (level: number) => void;
   onError?: (error: string) => void;
   onProcessingProgress?: (progress: number) => void;
 }
@@ -33,7 +30,6 @@ export class AudioProcessor {
   private callbacks: AudioProcessorCallbacks;
   
   private chromaWorker: ChromaWorkerClient;
-  private microphoneManager: MicrophoneManager;
   private audioDecoder: AudioDecoder;
   private chordSmoother: ChordSmoother;
   private keyDetector: KeyDetector;
@@ -59,10 +55,6 @@ export class AudioProcessor {
     
     // Initialize components
     this.chromaWorker = new ChromaWorkerClient();
-    this.microphoneManager = new MicrophoneManager({
-      sampleRate: this.config.sampleRate,
-      bufferSize: this.config.frameSize
-    });
     this.audioDecoder = new AudioDecoder();
     this.chordSmoother = new ChordSmoother(
       Math.ceil(this.config.smoothingStrength * 10),
@@ -71,41 +63,8 @@ export class AudioProcessor {
     this.keyDetector = new KeyDetector();
     this.tempoDetector = new TempoDetector();
     
-    this.setupMicrophoneCallbacks();
-    this.startProcessingLoop();
   }
 
-  private setupMicrophoneCallbacks(): void {
-    this.microphoneManager.onAudioDataReceived((audioData, timestamp) => {
-      if (this.isProcessing) {
-        this.processAudioFrame(audioData, timestamp);
-      }
-    });
-
-    this.microphoneManager.onStateChanged((state) => {
-      this.callbacks.onStateChanged?.(state);
-      
-      if (this.callbacks.onAudioLevel) {
-        const level = this.microphoneManager.getAudioLevel();
-        this.callbacks.onAudioLevel(level);
-      }
-    });
-  }
-
-  private startProcessingLoop(): void {
-    const updateInterval = 1000 / this.config.updateRate;
-    
-    const loop = () => {
-      if (this.callbacks.onAudioLevel && this.microphoneManager.getState().isRecording) {
-        const level = this.microphoneManager.getAudioLevel();
-        this.callbacks.onAudioLevel(level);
-      }
-      
-      this.animationFrame = requestAnimationFrame(loop);
-    };
-    
-    loop();
-  }
 
   private async processAudioFrame(audioData: Float32Array, timestamp: number): Promise<void> {
     try {
@@ -199,41 +158,9 @@ export class AudioProcessor {
   }
 
   // Public API methods
-  async requestMicrophonePermission(): Promise<boolean> {
-    return this.microphoneManager.requestPermission();
-  }
-
-  async startListening(): Promise<boolean> {
-    const started = await this.microphoneManager.startRecording();
-    if (started) {
-      this.isProcessing = true;
-      this.keyDetector.reset();
-      this.tempoDetector.reset();
-      this.chordSmoother.clear();
-    }
-    return started;
-  }
-
-  stopListening(): void {
-    this.isProcessing = false;
-    this.microphoneManager.stopRecording();
-    
-    // Finalize current segment
-    if (this.currentSegment) {
-      this.callbacks.onSegmentAdded?.(this.currentSegment);
-      this.currentSegment = null;
-    }
-  }
 
   async processFile(file: File): Promise<TimelineSegment[]> {
     try {
-      this.callbacks.onStateChanged?.({
-        isRecording: false,
-        hasPermission: true,
-        error: null,
-        stream: null
-      });
-
       this.callbacks.onProcessingProgress?.(0);
 
       const audioResult = await this.audioDecoder.decodeFile(file);
@@ -347,18 +274,9 @@ export class AudioProcessor {
     }
   }
 
-  getMicrophoneState(): MicrophoneState {
-    return this.microphoneManager.getState();
-  }
 
   dispose(): void {
-    this.stopListening();
-    this.microphoneManager.dispose();
     this.audioDecoder.dispose();
     this.chromaWorker.terminate();
-    
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame);
-    }
   }
 }
