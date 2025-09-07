@@ -21,6 +21,7 @@ export default function HomePage() {
     // State
     isListening,
     isProcessing,
+    processingProgress,
     hasPermission,
     audioLevel,
     error,
@@ -38,6 +39,7 @@ export default function HomePage() {
     // Actions
     setListening,
     setProcessing,
+    setProcessingProgress,
     setPermission,
     setAudioLevel,
     setError,
@@ -90,6 +92,9 @@ export default function HomePage() {
         },
         onError: (error) => {
           setError(error);
+        },
+        onProcessingProgress: (progress) => {
+          setProcessingProgress(progress);
         }
       }
     );
@@ -315,6 +320,7 @@ export default function HomePage() {
                 onFileRemove={handleFileRemove}
                 selectedFile={uploadedFile}
                 isProcessing={isProcessing}
+                processingProgress={processingProgress}
               />
 
               {segments.length > 0 && (

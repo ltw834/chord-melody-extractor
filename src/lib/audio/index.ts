@@ -25,6 +25,7 @@ export interface AudioProcessorCallbacks {
   onStateChanged?: (state: MicrophoneState) => void;
   onAudioLevel?: (level: number) => void;
   onError?: (error: string) => void;
+  onProcessingProgress?: (progress: number) => void;
 }
 
 export class AudioProcessor {
@@ -233,6 +234,8 @@ export class AudioProcessor {
         stream: null
       });
 
+      this.callbacks.onProcessingProgress?.(0);
+
       const audioResult = await this.audioDecoder.decodeFile(file);
       const audioData = this.audioDecoder.audioBufferToMono(audioResult.audioBuffer);
       
@@ -243,56 +246,73 @@ export class AudioProcessor {
         this.config.hopSize
       );
 
+      this.callbacks.onProcessingProgress?.(10);
+
       const segments: TimelineSegment[] = [];
       let currentChord = '';
       let currentStartTime = 0;
       let currentConfidence = 0;
 
-      // Process each frame
-      for (let i = 0; i < frames.length; i++) {
-        const timestamp = (i * this.config.hopSize) / this.config.sampleRate;
+      // Process frames in smaller batches to avoid blocking
+      const batchSize = 10;
+      const totalFrames = frames.length;
+
+      for (let batchStart = 0; batchStart < totalFrames; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, totalFrames);
         
-        const chromaResult = await this.chromaWorker.processFrame(
-          frames[i],
-          this.config.sampleRate,
-          this.config.frameSize,
-          this.config.hopSize,
-          timestamp
-        );
-
-        this.keyDetector.addChromaFrame(chromaResult.chroma);
-        
-        const keyEstimate = this.keyDetector.getCurrentKey();
-        const keyPrior = keyEstimate.confidence > 0.5 ? 
-          keyEstimate.key + (keyEstimate.mode === 'minor' ? 'm' : '') : 
-          undefined;
-
-        const chordMatch = matchChordToChroma(
-          chromaResult.chroma,
-          this.config.vocabularyLevel,
-          keyPrior
-        );
-
-        const smoothedResult = this.chordSmoother.addObservation(chordMatch, timestamp);
-
-        if (smoothedResult.chord !== currentChord) {
-          // Finalize previous segment
-          if (currentChord && timestamp - currentStartTime > 0.5) {
-            segments.push({
-              chord: currentChord,
-              startTime: currentStartTime,
-              endTime: timestamp,
-              confidence: currentConfidence
-            });
-          }
+        // Process batch of frames
+        for (let i = batchStart; i < batchEnd; i++) {
+          const timestamp = (i * this.config.hopSize) / this.config.sampleRate;
           
-          // Start new segment
-          currentChord = smoothedResult.chord;
-          currentStartTime = timestamp;
-          currentConfidence = smoothedResult.confidence;
-        } else {
-          currentConfidence = Math.max(currentConfidence, smoothedResult.confidence);
+          const chromaResult = await this.chromaWorker.processFrame(
+            frames[i],
+            this.config.sampleRate,
+            this.config.frameSize,
+            this.config.hopSize,
+            timestamp
+          );
+
+          this.keyDetector.addChromaFrame(chromaResult.chroma);
+          
+          const keyEstimate = this.keyDetector.getCurrentKey();
+          const keyPrior = keyEstimate.confidence > 0.5 ? 
+            keyEstimate.key + (keyEstimate.mode === 'minor' ? 'm' : '') : 
+            undefined;
+
+          const chordMatch = matchChordToChroma(
+            chromaResult.chroma,
+            this.config.vocabularyLevel,
+            keyPrior
+          );
+
+          const smoothedResult = this.chordSmoother.addObservation(chordMatch, timestamp);
+
+          if (smoothedResult.chord !== currentChord) {
+            // Finalize previous segment
+            if (currentChord && timestamp - currentStartTime > 0.5) {
+              segments.push({
+                chord: currentChord,
+                startTime: currentStartTime,
+                endTime: timestamp,
+                confidence: currentConfidence
+              });
+            }
+            
+            // Start new segment
+            currentChord = smoothedResult.chord;
+            currentStartTime = timestamp;
+            currentConfidence = smoothedResult.confidence;
+          } else {
+            currentConfidence = Math.max(currentConfidence, smoothedResult.confidence);
+          }
         }
+
+        // Update progress and yield to main thread
+        const progress = 10 + (batchEnd / totalFrames) * 85;
+        this.callbacks.onProcessingProgress?.(Math.round(progress));
+        
+        // Yield control to prevent UI freezing
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
 
       // Finalize last segment
@@ -305,6 +325,7 @@ export class AudioProcessor {
         });
       }
 
+      this.callbacks.onProcessingProgress?.(100);
       return segments;
 
     } catch (error) {

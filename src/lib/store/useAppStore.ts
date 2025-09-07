@@ -16,6 +16,7 @@ export interface AppState {
   // Audio state
   isListening: boolean;
   isProcessing: boolean;
+  processingProgress: number;
   hasPermission: boolean;
   audioLevel: number;
   error: string | null;
@@ -43,6 +44,7 @@ export interface AppState {
   // Actions
   setListening: (listening: boolean) => void;
   setProcessing: (processing: boolean) => void;
+  setProcessingProgress: (progress: number) => void;
   setPermission: (hasPermission: boolean) => void;
   setAudioLevel: (level: number) => void;
   setError: (error: string | null) => void;
@@ -79,6 +81,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 const INITIAL_STATE = {
   isListening: false,
   isProcessing: false,
+  processingProgress: 0,
   hasPermission: false,
   audioLevel: 0,
   error: null,
@@ -104,6 +107,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   setListening: (listening) => set({ isListening: listening }),
   setProcessing: (processing) => set({ isProcessing: processing }),
+  setProcessingProgress: (progress) => set({ processingProgress: progress }),
   setPermission: (hasPermission) => set({ hasPermission }),
   setAudioLevel: (audioLevel) => set({ audioLevel }),
   setError: (error) => set({ error }),

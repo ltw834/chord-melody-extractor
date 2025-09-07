@@ -8,6 +8,7 @@ interface FileDropProps {
   onFileRemove?: () => void;
   selectedFile?: File | null;
   isProcessing?: boolean;
+  processingProgress?: number;
   className?: string;
   accept?: string;
 }
@@ -17,6 +18,7 @@ export function FileDrop({
   onFileRemove,
   selectedFile,
   isProcessing = false,
+  processingProgress = 0,
   className,
   accept = '.mp3,.wav,.m4a,.aac,.ogg'
 }: FileDropProps) {
@@ -129,9 +131,14 @@ export function FileDrop({
             <div className="mt-4">
               <div className="flex items-center space-x-2">
                 <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary animate-pulse rounded-full" style={{ width: '60%' }} />
+                  <div 
+                    className="h-full bg-primary transition-all duration-300 rounded-full" 
+                    style={{ width: `${processingProgress}%` }} 
+                  />
                 </div>
-                <span className="text-sm text-muted-foreground">Processing...</span>
+                <span className="text-sm text-muted-foreground">
+                  {processingProgress < 100 ? `Processing... ${Math.round(processingProgress)}%` : 'Complete!'}
+                </span>
               </div>
             </div>
           )}
