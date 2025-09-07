@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ChordTile } from '@/components/ChordTile';
-import { ConfidenceRing } from '@/components/ConfidenceRing';
 import { Timeline, TimelineSegment } from '@/components/Timeline';
 import { FileDrop } from '@/components/FileDrop';
 import { ExportMenu } from '@/components/ExportMenu';
@@ -211,11 +210,17 @@ export default function HomePage() {
     try {
       const fileSegments = await audioProcessorRef.current.processFile(file);
       updateSegments(fileSegments);
-      
+
       if (fileSegments.length > 0) {
         const totalDuration = fileSegments[fileSegments.length - 1].endTime;
         setDuration(totalDuration);
         setCurrentTime(0);
+        // Set current chord to first detected segment so the hero shows a chord
+        const first = fileSegments[0];
+        setCurrentChord(first.chord, first.confidence);
+      } else {
+        // No segments found
+        setCurrentChord('N/C', 0);
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to process file');
@@ -460,7 +465,6 @@ export default function HomePage() {
           
           {/* Current Chord Display */}
           <div className="flex items-center justify-center space-x-8 mb-8">
-            <ConfidenceRing confidence={currentConfidence} />
             <ChordTile 
               chord={currentChord}
               confidence={currentConfidence}
