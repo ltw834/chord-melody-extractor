@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --primary-light: #8B7FFF;
+            --bg-tertiary: #2D2F4A;
+            --bg-surface: #252647;
+            --border-primary: #374151;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B4B7C7;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: transparent;
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .transport-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-primary);
+            backdrop-filter: blur(10px);
+            min-height: 60px;
+            box-sizing: border-box;
+        }
+
+        .transport-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .transport-button {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            user-select: none;
+        }
+
+        .transport-button:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .transport-button.primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .transport-button.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .transport-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .progress-container {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-surface);
+            border-radius: 3px;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            border-radius: 3px;
+            transition: width 0.15s ease-in-out;
+            width: 0%;
+        }
+
+        .time-display {
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            white-space: nowrap;
+            min-width: 120px;
+        }
+
+        .status-info {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .transport-container {
+                gap: 8px;
+                padding: 8px 12px;
+                min-height: 50px;
+            }
+            
+            .transport-controls {
+                gap: 8px;
+            }
+            
+            .transport-button {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            .time-display {
+                font-size: 12px;
+                min-width: 100px;
+            }
+            
+            .status-info {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="transport-container">
+        <!-- Play/Pause Controls -->
+        <div class="transport-controls">
+            <div class="transport-button" id="playBtn" title="Play/Pause">
+                <span id="playIcon">▶️</span>
+            </div>
+            <div class="transport-button" id="stopBtn" title="Stop">
+                ⏹️
+            </div>
+        </div>
+
+        <!-- Transport Info -->
+        <div class="transport-info">
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="time-display" id="timeDisplay">
+                0.0s / 0.0s
+            </div>
+            <div class="status-info" id="statusInfo">
+                Ready
+            </div>
+        </div>
+
+        <!-- Additional Controls -->
+        <div class="transport-controls">
+            <div class="transport-button" id="volumeBtn" title="Volume">
+                🔊
+            </div>
+            <div class="transport-button" id="syncBtn" title="Auto-sync">
+                🔄
+            </div>
+            <div class="transport-button" id="loopBtn" title="Loop">
+                🔁
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Component state
+        let state = {
+            isPlaying: false,
+            currentTime: 0,
+            duration: 0,
+            syncEnabled: true,
+            loopEnabled: false,
+            volume: 1.0,
+            loop: [1, 4]
+        };
+
+        // DOM elements
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playIcon = document.getElementById('playIcon');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const statusInfo = document.getElementById('statusInfo');
+        const volumeBtn = document.getElementById('volumeBtn');
+        const syncBtn = document.getElementById('syncBtn');
+        const loopBtn = document.getElementById('loopBtn');
+
+        // Update display
+        function updateDisplay() {
+            // Play button
+            playIcon.textContent = state.isPlaying ? '⏸️' : '▶️';
+            playBtn.classList.toggle('active', state.isPlaying);
+            
+            // Progress bar
+            const progress = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
+            progressFill.style.width = Math.min(100, Math.max(0, progress)) + '%';
+            
+            // Time display
+            timeDisplay.textContent = `${state.currentTime.toFixed(1)}s / ${state.duration.toFixed(1)}s`;
+            
+            // Status info
+            let status = 'Ready';
+            if (state.isPlaying) {
+                status = `Playing | Loop: ${state.loop[0]}-${state.loop[1]}`;
+            }
+            statusInfo.textContent = status;
+            
+            // Button states
+            syncBtn.classList.toggle('active', state.syncEnabled);
+            loopBtn.classList.toggle('active', state.loopEnabled);
+        }
+
+        // Event handlers
+        playBtn.addEventListener('click', () => {
+            state.isPlaying = !state.isPlaying;
+            updateDisplay();
+            
+            // Send event to Streamlit
+            window.parent.postMessage({
+                type: 'transport',
+                action: 'play_pause',
+                isPlaying: state.isPlaying,
+                currentTime: state.currentTime
+            }, '*');
+        });
+
+        stopBtn.addEventListener('click', () => {
+            state.isPlaying = false;
+            state.currentTime = 0;
+            updateDisplay();
+            
+            // Send event to Streamlit
+            window.parent.postMessage({
+                type: 'transport',
+                action: 'stop',
+                currentTime: 0
+            }, '*');
+        });
+
+        syncBtn.addEventListener('click', () => {
+            state.syncEnabled = !state.syncEnabled;
+            updateDisplay();
+            
+            // Send event to Streamlit
+            window.parent.postMessage({
+                type: 'transport',
+                action: 'sync_toggle',
+                syncEnabled: state.syncEnabled
+            }, '*');
+        });
+
+        loopBtn.addEventListener('click', () => {
+            state.loopEnabled = !state.loopEnabled;
+            updateDisplay();
+            
+            // Send event to Streamlit
+            window.parent.postMessage({
+                type: 'transport',
+                action: 'loop_toggle',
+                loopEnabled: state.loopEnabled
+            }, '*');
+        });
+
+        // Progress bar click handling
+        progressContainer.addEventListener('click', (e) => {
+            if (state.duration <= 0) return;
+            
+            const rect = progressContainer.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            const newTime = percentage * state.duration;
+            
+            state.currentTime = Math.max(0, Math.min(state.duration, newTime));
+            updateDisplay();
+            
+            // Send seek event to Streamlit
+            window.parent.postMessage({
+                type: 'transport',
+                action: 'seek',
+                currentTime: state.currentTime
+            }, '*');
+        });
+
+        // Listen for updates from Streamlit
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'streamlit_update') {
+                const data = event.data;
+                
+                if (data.currentTime !== undefined) {
+                    state.currentTime = data.currentTime;
+                }
+                if (data.duration !== undefined) {
+                    state.duration = data.duration;
+                }
+                if (data.isPlaying !== undefined) {
+                    state.isPlaying = data.isPlaying;
+                }
+                if (data.syncEnabled !== undefined) {
+                    state.syncEnabled = data.syncEnabled;
+                }
+                if (data.loop !== undefined) {
+                    state.loop = data.loop;
+                }
+                
+                updateDisplay();
+            }
+        });
+
+        // Auto-update timer (for smooth progress when playing)
+        setInterval(() => {
+            if (state.isPlaying && state.syncEnabled) {
+                // This would be synced with actual audio time
+                // For now, we rely on Streamlit updates
+                updateDisplay();
+            }
+        }, 100);
+
+        // Initial display update
+        updateDisplay();
+
+        // Signal ready to parent
+        window.parent.postMessage({
+            type: 'transport',
+            action: 'ready'
+        }, '*');
+    </script>
+</body>
+</html>

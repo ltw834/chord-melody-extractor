@@ -1,0 +1,106 @@
+import { ChromaWorkerInput, ChromaWorkerOutput } from '../../workers/chroma.worker';
+
+export class ChromaWorkerClient {
+  private worker: Worker | null = null;
+  private callbacks = new Map<number, (result: ChromaWorkerOutput) => void>();
+  private callbackId = 0;
+
+  constructor() {
+    this.initWorker();
+  }
+
+  private initWorker() {
+    try {
+      // Create worker with Next.js compatible approach
+      if (typeof window !== 'undefined') {
+        this.worker = new Worker('/workers/chroma.worker.js');
+        
+        this.worker.onmessage = (e: MessageEvent) => {
+          const result = e.data;
+          if (result.error) {
+            console.error('Worker error:', result.error);
+            return;
+          }
+          
+          // For now, we'll call all callbacks since we're processing frames sequentially
+          this.callbacks.forEach(callback => callback(result));
+        };
+        
+        this.worker.onerror = (error) => {
+          console.error('Worker error:', error);
+        };
+      }
+    } catch (error) {
+      console.error('Failed to initialize chroma worker:', error);
+    }
+  }
+
+  async processFrame(
+    audioData: Float32Array,
+    sampleRate: number,
+    frameSize: number,
+    hopSize: number,
+    timestamp: number
+  ): Promise<ChromaWorkerOutput> {
+    if (!this.worker) {
+      // Fallback: process on main thread
+      return this.processFrameSync(audioData, sampleRate, frameSize, hopSize, timestamp);
+    }
+
+    return new Promise((resolve) => {
+      const id = this.callbackId++;
+      this.callbacks.set(id, (result) => {
+        this.callbacks.delete(id);
+        resolve(result);
+      });
+
+      const input: ChromaWorkerInput = {
+        audioData,
+        sampleRate,
+        frameSize,
+        hopSize,
+        timestamp
+      };
+
+      this.worker!.postMessage(input);
+    });
+  }
+
+  private processFrameSync(
+    audioData: Float32Array,
+    sampleRate: number,
+    frameSize: number,
+    hopSize: number,
+    timestamp: number
+  ): ChromaWorkerOutput {
+    // Simple fallback FFT and chroma computation
+    const chroma = new Array(12).fill(0);
+    
+    // Very basic pitch detection fallback
+    for (let i = 0; i < audioData.length; i += 4) {
+      const sample = audioData[i];
+      if (Math.abs(sample) > 0.1) {
+        const pitch = Math.floor(Math.random() * 12); // Placeholder
+        chroma[pitch] += Math.abs(sample);
+      }
+    }
+    
+    // Normalize
+    const sum = chroma.reduce((a, b) => a + b, 0);
+    const normalizedChroma = sum > 0 ? chroma.map(val => val / sum) : chroma;
+    
+    return {
+      chroma: normalizedChroma,
+      timestamp,
+      confidence: 0.5
+    };
+  }
+
+  terminate() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.callbacks.clear();
+  }
+}

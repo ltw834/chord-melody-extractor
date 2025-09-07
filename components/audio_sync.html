@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Audio Sync (Optional)</title>
+  <style>body{margin:0;padding:0}</style>
+</head>
+<body>
+  <script>
+    // Optional helper: if an audio element exists in parent doc, report currentTime periodically.
+    (function init(){
+      const findAudio = () => parent && parent.document && parent.document.querySelector('audio');
+      let audio = findAudio();
+      const tick = () => {
+        if (!audio) audio = findAudio();
+        let t = audio && !isNaN(audio.currentTime) ? audio.currentTime : null;
+        // Streamlit components v1.html does not capture values, but we keep this for future wiring.
+        // If using declare_component, you can call Streamlit.setComponentValue(t)
+      };
+      setInterval(tick, 200);
+    })();
+  </script>
+</body>
+</html>
