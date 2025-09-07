@@ -35,8 +35,17 @@ export class ChromaWorkerClient {
             return;
           }
           
-          // For now, we'll call all callbacks since we're processing frames sequentially
-          this.callbacks.forEach(callback => callback(result));
+          // Call the first callback in queue (FIFO processing)
+          if (this.callbacks.size > 0) {
+            const firstKey = this.callbacks.keys().next().value;
+            if (firstKey !== undefined) {
+              const callback = this.callbacks.get(firstKey);
+              if (callback) {
+                this.callbacks.delete(firstKey);
+                callback(result);
+              }
+            }
+          }
         };
         
         this.worker.onerror = (error) => {
@@ -62,10 +71,7 @@ export class ChromaWorkerClient {
 
     return new Promise((resolve) => {
       const id = this.callbackId++;
-      this.callbacks.set(id, (result) => {
-        this.callbacks.delete(id);
-        resolve(result);
-      });
+      this.callbacks.set(id, resolve);
 
       const input: ChromaWorkerInput = {
         audioData,
