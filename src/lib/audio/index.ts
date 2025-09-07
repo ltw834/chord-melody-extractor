@@ -36,10 +36,14 @@ export class AudioProcessor {
   private tempoDetector: TempoDetector;
   
   private isProcessing = false;
+  private isStreaming = false;
   private lastChord = '';
   private lastSegmentTime = 0;
   private currentSegment: TimelineSegment | null = null;
   private animationFrame?: number;
+  private elementContext?: AudioContext;
+  private elementProcessor?: ScriptProcessorNode;
+  private elementSource?: MediaElementAudioSourceNode;
 
   constructor(config: AudioProcessorConfig = {}, callbacks: AudioProcessorCallbacks = {}) {
     this.config = {
@@ -66,7 +70,8 @@ export class AudioProcessor {
   }
 
 
-  private async processAudioFrame(audioData: Float32Array, timestamp: number): Promise<void> {
+  // Expose frame processing for streaming sources (microphone)
+  async processAudioFrame(audioData: Float32Array, timestamp: number): Promise<void> {
     try {
       // Process audio through chroma extraction
       const chromaResult = await this.chromaWorker.processFrame(
@@ -209,6 +214,69 @@ export class AudioProcessor {
   }
 
   // Public API methods
+  startStream(): void {
+    this.isStreaming = true;
+    this.lastChord = '';
+    this.lastSegmentTime = 0;
+    this.currentSegment = null;
+    // Reset smoothing state by recreating smoother
+    this.chordSmoother = new ChordSmoother(
+      Math.ceil(this.config.smoothingStrength * 10),
+      0.3
+    );
+    this.keyDetector = new KeyDetector();
+    this.tempoDetector = new TempoDetector();
+  }
+
+  stopStream(): void {
+    this.isStreaming = false;
+    // Flush last current segment if any
+    if (this.currentSegment && this.currentSegment.endTime - this.currentSegment.startTime > 0.5) {
+      this.callbacks.onSegmentAdded?.(this.currentSegment);
+    }
+    this.currentSegment = null;
+  }
+
+  // Attach a HTMLMediaElement and analyze its audio via WebAudio
+  async attachElement(media: HTMLMediaElement): Promise<void> {
+    // Clean any previous graph
+    if (this.elementProcessor) {
+      this.elementProcessor.disconnect();
+      this.elementProcessor.onaudioprocess = null;
+      this.elementProcessor = undefined;
+    }
+    if (this.elementSource) {
+      this.elementSource.disconnect();
+      this.elementSource = undefined;
+    }
+    if (!this.elementContext) {
+      this.elementContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (this.elementContext.state === 'suspended') await this.elementContext.resume();
+
+    // Build processing chain
+    const ctx = this.elementContext;
+    const source = ctx.createMediaElementSource(media);
+    const processor = ctx.createScriptProcessor(this.config.hopSize, 1, 1);
+    const mute = ctx.createGain();
+    mute.gain.value = 0; // keep node alive without double audio
+    source.connect(processor);
+    source.connect(mute);
+    mute.connect(ctx.destination);
+    processor.connect(ctx.destination);
+
+    processor.onaudioprocess = async (event) => {
+      if (!this.isStreaming) return;
+      const input = event.inputBuffer.getChannelData(0);
+      const frame = new Float32Array(input);
+      const timestamp = media.currentTime;
+      await this.processAudioFrame(frame, timestamp);
+    };
+
+    this.startStream();
+    this.elementProcessor = processor;
+    this.elementSource = source;
+  }
 
   async processFile(file: File): Promise<TimelineSegment[]> {
     try {
@@ -238,12 +306,18 @@ export class AudioProcessor {
       for (let batchStart = 0; batchStart < totalFrames; batchStart += batchSize) {
         const batchEnd = Math.min(batchStart + batchSize, totalFrames);
         
-        // Process batch of frames (bypass worker completely)
+        // Process batch of frames using worker-backed chroma extraction
         for (let i = batchStart; i < batchEnd; i++) {
-          const timestamp = (i * this.config.hopSize) / this.config.sampleRate;
-          
-          // Simple main-thread processing
-          const chromaResult = this.processFrameDirectly(frames[i], timestamp);
+          const timestamp = (i * this.config.hopSize) / audioResult.sampleRate;
+
+          // Prefer worker processing; falls back internally if unavailable
+          const chromaResult = await this.chromaWorker.processFrame(
+            frames[i],
+            audioResult.sampleRate, // use true sample rate
+            this.config.frameSize,
+            this.config.hopSize,
+            timestamp
+          );
 
           this.keyDetector.addChromaFrame(chromaResult.chroma);
           

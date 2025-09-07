@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, FileText, Code, FileImage, Settings } from 'lucide-react';
+import { Download, FileText, Code, FileImage, Settings, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
@@ -14,6 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { TimelineSegment } from '@/components/Timeline';
 import { formatChordSheet, exportToJSON, ExportOptions } from '@/lib/chords/formatters';
 import { cn } from '@/lib/utils';
+import { exportSegmentsToMidi } from '@/lib/midi/export';
 
 interface ExportMenuProps {
   segments: TimelineSegment[];
@@ -33,7 +34,7 @@ export function ExportMenu({ segments, detectedKey, className, disabled }: Expor
     includeConfidence: false
   });
 
-  const handleExport = (format: 'txt' | 'json' | 'pdf') => {
+  const handleExport = (format: 'txt' | 'json' | 'pdf' | 'midi') => {
     if (segments.length === 0) return;
 
     let content: string;
@@ -55,12 +56,20 @@ export function ExportMenu({ segments, detectedKey, className, disabled }: Expor
         // For PDF, we'll use a server route
         handlePDFExport();
         return;
+      case 'midi':
+        const blob = exportSegmentsToMidi(segments,  detectedKey ? parseInt(String(detectedKey)) : undefined);
+        downloadBlob(blob, `chordsnap-chords-${Date.now()}.mid`);
+        return;
       default:
         return;
     }
 
     // Create and download file
     const blob = new Blob([content], { type: mimeType });
+    downloadBlob(blob, filename);
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -130,6 +139,11 @@ export function ExportMenu({ segments, detectedKey, className, disabled }: Expor
         <DropdownMenuItem onClick={() => handleExport('pdf')}>
           <FileImage className="w-4 h-4 mr-2" />
           PDF (.pdf)
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => handleExport('midi')}>
+          <Music className="w-4 h-4 mr-2" />
+          MIDI (.mid)
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
