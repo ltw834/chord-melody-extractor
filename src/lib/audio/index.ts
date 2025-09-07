@@ -174,6 +174,7 @@ export class AudioProcessor {
       );
 
       this.callbacks.onProcessingProgress?.(10);
+      console.log(`Starting processing of ${frames.length} frames`);
 
       const segments: TimelineSegment[] = [];
       let currentChord = '';
@@ -183,14 +184,17 @@ export class AudioProcessor {
       // Process frames in smaller batches to avoid blocking
       const batchSize = 10;
       const totalFrames = frames.length;
+      console.log(`Processing ${totalFrames} frames in batches of ${batchSize}`);
 
       for (let batchStart = 0; batchStart < totalFrames; batchStart += batchSize) {
         const batchEnd = Math.min(batchStart + batchSize, totalFrames);
+        console.log(`Processing batch ${batchStart}-${batchEnd} of ${totalFrames}`);
         
         // Process batch of frames
         for (let i = batchStart; i < batchEnd; i++) {
           const timestamp = (i * this.config.hopSize) / this.config.sampleRate;
           
+          console.log(`Processing frame ${i}/${totalFrames} at timestamp ${timestamp}`);
           const chromaResult = await this.chromaWorker.processFrame(
             frames[i],
             this.config.sampleRate,
@@ -198,6 +202,7 @@ export class AudioProcessor {
             this.config.hopSize,
             timestamp
           );
+          console.log(`Frame ${i} processed, chroma result:`, chromaResult);
 
           this.keyDetector.addChromaFrame(chromaResult.chroma);
           
