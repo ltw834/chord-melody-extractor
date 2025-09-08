@@ -18,6 +18,8 @@ import { BigListenButton } from '@/components/BigListenButton';
 import { Metronome } from '@/lib/audio/metronome';
 import { LyricsPanel, WhisperSegment } from '@/components/LyricsPanel';
 import { LyricsWithChords } from '@/components/LyricsWithChords';
+import BigCounter from '@/components/BigCounter';
+import MeasureGrid from '@/components/MeasureGrid';
 
 export default function HomePage() {
   const {
@@ -27,10 +29,14 @@ export default function HomePage() {
     error,
     currentChord,
     currentConfidence,
-    segments,
+  segments,
     currentTime,
     duration,
     isPlaying,
+  viewMode,
+  setViewMode,
+  setChordBlocks,
+  setBeatInfo,
     detectedKey,
     detectedTempo,
   timeSignature,
@@ -229,6 +235,19 @@ export default function HomePage() {
         // Set current chord to first detected segment so the hero shows a chord
         const first = fileSegments[0];
         setCurrentChord(first.chord, first.confidence);
+        // Quantize segments into chord blocks for grid view
+        try {
+          const beatInfo = audioProcessorRef.current ? audioProcessorRef.current['tempoDetector']?.getBeatInfo?.() : null;
+          if (beatInfo && beatInfo.confidence > 0) {
+            const blocks = (await import('@/lib/audio')).quantizeSegmentsToBeats(
+              fileSegments.map(s => ({ start: s.startTime, end: s.endTime, label: s.chord, confidence: s.confidence })),
+              beatInfo,
+              settings?.updateRate ? 'beat' : 'beat'
+            );
+            setChordBlocks(blocks as any);
+            setBeatInfo(beatInfo);
+          }
+        } catch (e) {}
       } else {
         // No segments found
         setCurrentChord('N/C', 0);
@@ -553,7 +572,21 @@ export default function HomePage() {
             </div>
           </div>
 
-          {segments.length > 0 && (
+          <div className="flex items-center justify-between mt-4">
+            <BigCounter />
+            <select
+              className="border rounded px-2 py-1"
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as any)}
+            >
+              <option value="grid">Grid</option>
+              <option value="sheet">Sheet</option>
+              <option value="timeline">Timeline</option>
+            </select>
+          </div>
+
+          {viewMode === 'grid' && <MeasureGrid />}
+          {viewMode === 'timeline' && segments.length > 0 && (
             <Timeline
               segments={segments}
               currentTime={currentTime}

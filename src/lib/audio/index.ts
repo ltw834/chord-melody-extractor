@@ -488,3 +488,54 @@ export class AudioProcessor {
     this.chromaWorker.terminate();
   }
 }
+
+// Helper: convert time (sec) -> bar/beat
+export function timeToBarBeat(tSec: number, info: import('./tempoDetect').BeatInfo) {
+  const beatSec = 60 / Math.max(1, info.bpm) * (4 / info.timeSignature.denominator);
+  const globalBeat = tSec / beatSec; // float
+  const beatsPerBar = info.timeSignature.numerator;
+  const bar = Math.floor(globalBeat / beatsPerBar) + 1;
+  const beat = Math.floor(globalBeat % beatsPerBar) + 1;
+  return { bar, beat, beatFloat: globalBeat };
+}
+
+export function quantizeSegmentsToBeats(
+  segments: { start: number; end: number; label: string; confidence: number }[],
+  info: import('./tempoDetect').BeatInfo,
+  mode: 'beat' | 'half' | 'bar' = 'beat'
+){
+  const beatSec = 60 / Math.max(1, info.bpm) * (4 / info.timeSignature.denominator);
+  const step = mode === 'bar' ? info.timeSignature.numerator
+            : mode === 'half' ? 0.5
+            : 1;
+
+  const toBeat = (t: number) => Math.round((t / beatSec) / step) * step;
+  const blocks: any[] = [];
+  for (const s of segments) {
+    const startBeat = Math.max(0, toBeat(s.start));
+    const endBeat = Math.max(startBeat + step, toBeat(s.end));
+    const barIndex = Math.floor(startBeat / info.timeSignature.numerator);
+    blocks.push({
+      label: s.label,
+      startSec: startBeat * beatSec,
+      endSec: endBeat * beatSec,
+      startBeat,
+      endBeat,
+      barIndex,
+      confidence: s.confidence ?? 1
+    });
+  }
+
+  // merge adjacent same label
+  const merged: any[] = [];
+  for (const b of blocks) {
+    const last = merged[merged.length - 1];
+    if (last && last.label === b.label && Math.abs(last.endSec - b.startSec) < 1e-3) {
+      last.endSec = Math.max(last.endSec, b.endSec);
+      last.endBeat = Math.max(last.endBeat, b.endBeat);
+      last.confidence = Math.max(last.confidence, b.confidence);
+    } else merged.push({ ...b });
+  }
+
+  return merged;
+}

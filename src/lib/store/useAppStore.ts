@@ -33,6 +33,24 @@ export interface AppState {
   detectedKey: KeyEstimate | null;
   detectedTempo: TempoEstimate | null;
   timeSignature?: { numerator: number; denominator: number } | null;
+  // Grid / beat view state
+  viewMode: 'grid' | 'sheet' | 'timeline';
+  beatInfo: import('@/lib/audio/tempoDetect').BeatInfo | null;
+  userBeatInfo: Partial<import('@/lib/audio/tempoDetect').BeatInfo> | null;
+  gridSettings: {
+  showBeatSubdivisions: boolean;
+  quantizeTo: 'beat' | 'half' | 'bar';
+  barsPerRow: number;
+  };
+  chordBlocks: Array<{
+    label: string;
+    startSec: number;
+    endSec: number;
+    startBeat: number;
+    endBeat: number;
+    barIndex: number;
+    confidence: number;
+  }>;
   
   // Settings
   settings: AppSettings;
@@ -58,6 +76,11 @@ export interface AppState {
   setDetectedKey: (key: KeyEstimate) => void;
   setDetectedTempo: (tempo: TempoEstimate) => void;
   setTimeSignature: (sig: { numerator: number; denominator: number } | null) => void;
+  setViewMode: (v: 'grid' | 'sheet' | 'timeline') => void;
+  setBeatInfo: (b: import('@/lib/audio/tempoDetect').BeatInfo | null) => void;
+  setUserBeatInfo: (p: Partial<import('@/lib/audio/tempoDetect').BeatInfo> | null) => void;
+  setGridSettings: (p: Partial<{ showBeatSubdivisions: boolean; quantizeTo: 'beat' | 'half' | 'bar' }>) => void;
+  setChordBlocks: (b: AppState['chordBlocks']) => void;
   
   updateSettings: (settings: Partial<AppSettings>) => void;
   resetSettings: () => void;
@@ -100,6 +123,12 @@ const INITIAL_STATE = {
 
 export const useAppStore = create<AppState>((set, get) => ({
   ...INITIAL_STATE,
+  // New defaults for grid/beat features
+  viewMode: (typeof window !== 'undefined' && (localStorage.getItem('viewMode') as any)) || 'grid',
+  beatInfo: null,
+  userBeatInfo: null,
+  gridSettings: { showBeatSubdivisions: true, quantizeTo: 'beat', barsPerRow: 5 },
+  chordBlocks: [],
   
   setProcessing: (processing) => set({ isProcessing: processing }),
   setProcessingProgress: (progress) => set({ processingProgress: progress }),
@@ -138,6 +167,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   setDetectedKey: (detectedKey) => set({ detectedKey }),
   setDetectedTempo: (detectedTempo) => set({ detectedTempo }),
   setTimeSignature: (sig) => set({ timeSignature: sig }),
+  setViewMode: (v) => {
+    try { localStorage.setItem('viewMode', v); } catch {};
+    set({ viewMode: v });
+  },
+  setBeatInfo: (b) => set({ beatInfo: b }),
+  setUserBeatInfo: (p) => {
+    try {
+      const merged = { ...(get().userBeatInfo || {}), ...p };
+      localStorage.setItem('userBeatInfo', JSON.stringify(merged));
+      set({ userBeatInfo: merged });
+    } catch { set({ userBeatInfo: p }); }
+  },
+  setGridSettings: (p) => {
+    set((state) => ({ gridSettings: { ...state.gridSettings, ...p } }));
+  },
+  setChordBlocks: (b) => set({ chordBlocks: b }),
   
   updateSettings: (newSettings) => set((state) => ({
     settings: { ...state.settings, ...newSettings }
