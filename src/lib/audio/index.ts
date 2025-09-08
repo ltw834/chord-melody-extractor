@@ -6,6 +6,7 @@ import { TempoDetector } from './tempoDetect';
 import { matchChordToChroma, generateChordTemplates } from '../chords/templates';
 import { VocabularyLevel } from '../chords/vocab';
 import { TimelineSegment } from '@/components/Timeline';
+import { useAppStore } from '@/lib/store/useAppStore';
 
 export interface AudioProcessorConfig {
   sampleRate?: number;
@@ -67,6 +68,24 @@ export class AudioProcessor {
     this.keyDetector = new KeyDetector();
     this.tempoDetector = new TempoDetector();
     
+    // Read debug flag from store (default false). We capture a function to avoid importing react hooks here.
+    try {
+      // Access store synchronously
+      const s = (require('@/lib/store/useAppStore') as any).useAppStore as any;
+      this._debugEnabled = s.getState ? s.getState().settings?.debugLogging : false;
+    } catch {
+      this._debugEnabled = false;
+    }
+    
+  }
+
+  // Internal flag to gate debug logs
+  private _debugEnabled: boolean = false;
+
+  private logDebug(...args: any[]) {
+    if (this._debugEnabled) {
+      try { console.debug(...args); } catch {}
+    }
   }
 
 
@@ -98,8 +117,13 @@ export class AudioProcessor {
         keyPrior
       );
 
+  // DEBUG: streaming frame info
+  this.logDebug('[AudioProcessor] stream frame ts', timestamp.toFixed(3), 'keyPrior', keyPrior, 'chordMatch', chordMatch);
+
       // Apply smoothing
       const smoothedResult = this.chordSmoother.addObservation(chordMatch, timestamp);
+
+  this.logDebug('[AudioProcessor] stream smoothed', smoothedResult);
 
       // Update current chord
       if (smoothedResult.confidence > 0.3) {
@@ -320,6 +344,9 @@ export class AudioProcessor {
           );
 
           this.keyDetector.addChromaFrame(chromaResult.chroma);
+
+          // DEBUG: log chroma snapshot
+          this.logDebug('[AudioProcessor] frame', i, 'ts', timestamp.toFixed(3), 'chroma', chromaResult.chroma.map((v: number) => v.toFixed(3)));
           
           const keyEstimate = this.keyDetector.getCurrentKey();
           const keyPrior = keyEstimate.confidence > 0.5 ? 
@@ -332,7 +359,13 @@ export class AudioProcessor {
             keyPrior
           );
 
+          // DEBUG: log chord match
+          this.logDebug('[AudioProcessor] chordMatch', timestamp.toFixed(3), chordMatch);
+
           const smoothedResult = this.chordSmoother.addObservation(chordMatch, timestamp);
+
+          // DEBUG: log smoothing result
+          this.logDebug('[AudioProcessor] smoothed', timestamp.toFixed(3), smoothedResult);
 
           if (smoothedResult.chord !== currentChord) {
             // Finalize previous segment
@@ -354,9 +387,10 @@ export class AudioProcessor {
           }
         }
 
-        // Update progress and yield to main thread
-        const progress = 10 + (batchEnd / totalFrames) * 85;
-        this.callbacks.onProcessingProgress?.(Math.round(progress));
+  // Update progress and yield to main thread
+  const progress = 10 + (batchEnd / totalFrames) * 85;
+  this.callbacks.onProcessingProgress?.(Math.round(progress));
+  this.logDebug('[AudioProcessor] progress', Math.round(progress));
         
         // Yield control to prevent UI freezing
         await new Promise(resolve => setTimeout(resolve, 0));

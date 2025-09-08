@@ -187,6 +187,18 @@ export function SettingsSheet({
           </div>
 
           {/* Performance Info */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Debug Logging</label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                checked={!!tempSettings.debugLogging}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingChange('debugLogging', e.target.checked)}
+                className="w-4 h-4"
+              />
+              <p className="text-xs text-muted-foreground">Toggle verbose audio processing logs to the console (useful for debugging). Keep off for normal use.</p>
+            </div>
+          </div>
           <div className="p-4 bg-muted rounded-lg">
             <h4 className="text-sm font-medium mb-2">Performance Tips</h4>
             <ul className="text-xs text-muted-foreground space-y-1">

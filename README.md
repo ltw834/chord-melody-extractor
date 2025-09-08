@@ -299,6 +299,62 @@ We welcome contributions! Here's how to get started:
    - Console error messages (if any)
    - Audio file or recording (if relevant)
 
+## Optional: Omnizart (advanced transcription)
+
+That’s an excellent idea — Omnizart is a powerful Python toolbox that adds note-level transcription, multi-instrument support, drum, vocal melody, beat, and chord detection — well beyond what Whisper or your current audio pipeline offers.
+
+What Omnizart brings
+
+- Pre-trained models for chord recognition, as well as note-level melodic transcription, beat/downbeat, drum events, and vocal pitch.
+- Command-line tools (omnizart chord transcribe <file.wav>) and a Python API make it flexible to both batch and code-driven pipelines.
+- Based on deep learning research from MCT Lab, it’s suitable for polyphonic music transcription.
+
+How to integrate Omnizart into your app
+
+1. Add it as an optional backend method:
+
+```py
+try:
+    import omnizart
+    HAVE_OMNIZART = True
+except ImportError:
+    HAVE_OMNIZART = False
+```
+
+2. Add a checkbox in your UI: “Use Omnizart (advanced)” and pass `use_omnizart=true` in your processing request payload.
+
+3. In your server-side processing endpoint, prefer Omnizart when requested and available:
+
+```py
+if mode == 'both':
+    if use_omnizart and HAVE_OMNIZART:
+        path = ensure_wav(src)
+        from omnizart.app import chord
+        result = chord.transcribe(path)
+        bars = [(seg['start'], seg['label']) for seg in result['chords']]
+        key_name = 'Unknown'
+    else:
+        tempo, _, _, key_name, bars = analyze_chords(path)
+        bars = diatonic_simplify(bars, key_name)
+```
+
+4. Installation instructions (optional):
+
+```bash
+pip install omnizart
+omnizart download-checkpoints
+```
+
+Note: Omnizart requires Linux or x86 Mac (ARM builds currently unsupported). See their GitHub issues if you’re on M1/M2 Mac.
+
+Recommendation: Safe-by-default
+
+- Keep your current chord method for consistency and wider compatibility.
+- If Omnizart is installed, expose an opt-in checkbox to users.
+- Always provide a fallback so ARM Macs and environments without extra dependencies continue to work.
+
+If you want, I can generate the exact code diff to add Omnizart support in your backend and create the UI toggle snippet for your React page.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -10,6 +10,7 @@ export interface AppSettings {
   updateRate: number;
   tuningOffset: number; // cents
   capoOffset: number;   // frets
+  debugLogging: boolean;
 }
 
 export interface AppState {
@@ -70,6 +71,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   updateRate: 20, // Hz
   tuningOffset: 0,
   capoOffset: 0
+  ,debugLogging: false
 };
 
 const INITIAL_STATE = {

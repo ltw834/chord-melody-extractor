@@ -69,6 +69,7 @@ export default function HomePage() {
   const [inputUrl, setInputUrl] = useState('');
   const [resolveStatus, setResolveStatus] = useState('');
   const [lyrics, setLyrics] = useState<WhisperSegment[]>([]);
+  const [useOmnizart, setUseOmnizart] = useState(false);
   
   // Decide whether to fully download and process or stream-attach
   async function tryProcessOrStream(streamUrl: string, title?: string) {
@@ -403,9 +404,10 @@ export default function HomePage() {
       const res = await fetch(audio.src);
       if (!res.ok) { setResolveStatus('Unable to fetch audio for transcription'); return; }
       const blob = await res.blob();
-      const fd = new FormData();
-      fd.append('file', new File([blob], 'audio.mp3'));
-      const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+  const fd = new FormData();
+  fd.append('file', new File([blob], 'audio.mp3'));
+  if (useOmnizart) fd.append('use_omnizart', 'true');
+  const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
       const data = await r.json();
       if (!r.ok) { setResolveStatus(data.error || 'Transcribe failed'); return; }
       setLyrics((data.segments ?? []).map((s: any) => ({ start: s.start, end: s.end, text: s.text })));
@@ -503,6 +505,10 @@ export default function HomePage() {
               onChange={(e) => setInputUrl(e.target.value)}
             />
             <Button size="sm" onClick={resolveAndLoadUrl}>Load</Button>
+            <label className="flex items-center space-x-2 text-sm">
+              <input type="checkbox" checked={useOmnizart} onChange={(e) => setUseOmnizart(e.target.checked)} className="w-4 h-4" />
+              <span>Use Omnizart (advanced)</span>
+            </label>
             <Button size="sm" variant="outline" onClick={transcribeCurrent}>Transcribe</Button>
           </div>
           <div className="text-xs text-muted-foreground mt-2">{resolveStatus}</div>

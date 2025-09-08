@@ -17,8 +17,21 @@ export class ChromaWorkerClient {
   private worker: Worker | null = null;
   private callbacks = new Map<number, (result: ChromaWorkerOutput) => void>();
   private callbackId = 0;
+  private _debugEnabled: boolean = false;
+
+  private logDebug(...args: any[]) {
+    if (this._debugEnabled) {
+      try { console.debug(...args); } catch {}
+    }
+  }
 
   constructor() {
+    try {
+      const s = (require('@/lib/store/useAppStore') as any).useAppStore as any;
+      this._debugEnabled = s.getState ? s.getState().settings?.debugLogging : false;
+    } catch {
+      this._debugEnabled = false;
+    }
     this.initWorker();
   }
 
@@ -26,7 +39,8 @@ export class ChromaWorkerClient {
     try {
       // Create worker with Next.js compatible approach
       if (typeof window !== 'undefined') {
-        this.worker = new Worker('/workers/chroma.worker.js');
+  // Use a relative path so the worker resolves correctly when the app is hosted under a basePath (e.g. GitHub Pages)
+  this.worker = new Worker('workers/chroma.worker.js');
         
         this.worker.onmessage = (e: MessageEvent) => {
           const result = e.data;
@@ -66,7 +80,7 @@ export class ChromaWorkerClient {
   ): Promise<ChromaWorkerOutput> {
     if (!this.worker) {
       // Fallback: process on main thread
-      console.log('Worker not available, using fallback processing');
+      this.logDebug('Worker not available, using fallback processing');
       return this.processFrameSync(audioData, sampleRate, frameSize, hopSize, timestamp);
     }
 
@@ -74,7 +88,7 @@ export class ChromaWorkerClient {
       const id = this.callbackId++;
       const timeout = setTimeout(() => {
         this.callbacks.delete(id);
-        console.log('Worker timeout, falling back to sync processing');
+        this.logDebug('Worker timeout, falling back to sync processing');
         resolve(this.processFrameSync(audioData, sampleRate, frameSize, hopSize, timestamp));
       }, 1000); // 1 second timeout
 
@@ -96,7 +110,7 @@ export class ChromaWorkerClient {
       } catch (error) {
         clearTimeout(timeout);
         this.callbacks.delete(id);
-        console.log('Worker postMessage failed, using fallback:', error);
+        this.logDebug('Worker postMessage failed, using fallback:', error);
         resolve(this.processFrameSync(audioData, sampleRate, frameSize, hopSize, timestamp));
       }
     });
