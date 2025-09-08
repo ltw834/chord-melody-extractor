@@ -33,6 +33,7 @@ export default function HomePage() {
     isPlaying,
     detectedKey,
     detectedTempo,
+  timeSignature,
     settings,
     uploadedFile,
     
@@ -49,6 +50,7 @@ export default function HomePage() {
     setPlaying,
     setDetectedKey,
     setDetectedTempo,
+  setTimeSignature,
     updateSettings,
     resetSettings,
     setUploadedFile,
@@ -130,6 +132,14 @@ export default function HomePage() {
         },
         onTempoDetected: (bpm, confidence) => {
           setDetectedTempo({ bpm, confidence });
+          // Assume common time (4/4) for now; could be improved with beat/downbeat detection
+          if (confidence > 0.4) setTimeSignature({ numerator: 4, denominator: 4 });
+        },
+        onBeatInfo: (beatInfo) => {
+          try {
+            setTimeSignature(beatInfo.timeSignature);
+            setDetectedTempo({ bpm: beatInfo.bpm, confidence: beatInfo.confidence });
+          } catch {}
         },
         onError: (error) => {
           setError(error);
@@ -485,6 +495,11 @@ export default function HomePage() {
             {detectedTempo && detectedTempo.confidence > 0.5 && (
               <Badge variant="outline">
                 Tempo: {detectedTempo.bpm} BPM
+              </Badge>
+            )}
+            {timeSignature && (
+              <Badge variant="outline">
+                Time: {timeSignature.numerator}/{timeSignature.denominator}
               </Badge>
             )}
             {duration > 0 && (

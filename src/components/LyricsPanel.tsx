@@ -1,7 +1,15 @@
+export interface WhisperWord {
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface WhisperSegment {
   start: number;
   end: number;
   text: string;
+  // Optional per-word timestamps when verbose transcription is used
+  words?: WhisperWord[];
 }
 
 export function LyricsPanel({ segments }: { segments: WhisperSegment[] }) {

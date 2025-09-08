@@ -32,6 +32,7 @@ export interface AppState {
   // Music analysis
   detectedKey: KeyEstimate | null;
   detectedTempo: TempoEstimate | null;
+  timeSignature?: { numerator: number; denominator: number } | null;
   
   // Settings
   settings: AppSettings;
@@ -56,6 +57,7 @@ export interface AppState {
   
   setDetectedKey: (key: KeyEstimate) => void;
   setDetectedTempo: (tempo: TempoEstimate) => void;
+  setTimeSignature: (sig: { numerator: number; denominator: number } | null) => void;
   
   updateSettings: (settings: Partial<AppSettings>) => void;
   resetSettings: () => void;
@@ -89,6 +91,7 @@ const INITIAL_STATE = {
   
   detectedKey: null,
   detectedTempo: null,
+  timeSignature: null,
   
   settings: DEFAULT_SETTINGS,
   
@@ -134,6 +137,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   setDetectedKey: (detectedKey) => set({ detectedKey }),
   setDetectedTempo: (detectedTempo) => set({ detectedTempo }),
+  setTimeSignature: (sig) => set({ timeSignature: sig }),
   
   updateSettings: (newSettings) => set((state) => ({
     settings: { ...state.settings, ...newSettings }

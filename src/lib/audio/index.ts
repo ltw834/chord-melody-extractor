@@ -22,6 +22,7 @@ export interface AudioProcessorCallbacks {
   onSegmentAdded?: (segment: TimelineSegment) => void;
   onKeyDetected?: (key: string, confidence: number, mode: 'major' | 'minor') => void;
   onTempoDetected?: (bpm: number, confidence: number) => void;
+  onBeatInfo?: (beatInfo: import('./tempoDetect').BeatInfo) => void;
   onError?: (error: string) => void;
   onProcessingProgress?: (progress: number) => void;
 }
@@ -135,22 +136,20 @@ export class AudioProcessor {
 
       // Periodically report key and tempo
       if (timestamp - this.lastSegmentTime > 2.0) { // Every 2 seconds
-        const tempoEstimate = this.tempoDetector.getCurrentTempo();
-        
-        if (keyEstimate.confidence > 0.6) {
-          this.callbacks.onKeyDetected?.(
-            keyEstimate.key,
-            keyEstimate.confidence,
-            keyEstimate.mode
-          );
-        }
-        
-        if (tempoEstimate.confidence > 0.5) {
-          this.callbacks.onTempoDetected?.(
-            tempoEstimate.bpm,
-            tempoEstimate.confidence
-          );
-        }
+        try {
+          const beatInfo = this.tempoDetector.getBeatInfo();
+          if (keyEstimate.confidence > 0.6) {
+            this.callbacks.onKeyDetected?.(
+              keyEstimate.key,
+              keyEstimate.confidence,
+              keyEstimate.mode
+            );
+          }
+          if (beatInfo.confidence > 0.2) {
+            this.callbacks.onTempoDetected?.(beatInfo.bpm, beatInfo.confidence);
+            this.callbacks.onBeatInfo?.(beatInfo);
+          }
+        } catch {}
         
         this.lastSegmentTime = timestamp;
       }
@@ -343,6 +342,9 @@ export class AudioProcessor {
             timestamp
           );
 
+          // Feed the raw frame to tempo detector as well so file processing can estimate BPM
+          try { this.tempoDetector.addAudioFrame(frames[i], timestamp); } catch {}
+
           this.keyDetector.addChromaFrame(chromaResult.chroma);
 
           // DEBUG: log chroma snapshot
@@ -404,6 +406,58 @@ export class AudioProcessor {
           endTime: audioResult.duration,
           confidence: currentConfidence
         });
+      }
+
+      // After processing, compute tempo and quantize segment boundaries to the beat grid
+      try {
+        const beatInfo = this.tempoDetector.getBeatInfo();
+        if (beatInfo.confidence > 0) {
+          this.callbacks.onTempoDetected?.(beatInfo.bpm, beatInfo.confidence);
+          this.callbacks.onBeatInfo?.(beatInfo);
+        }
+
+        // Quantize segments to nearest beat using detected beatInfo (assume 4/4 for now)
+        if (segments.length > 0 && beatInfo.confidence > 0) {
+          const beatSec = 60 / Math.max(1, beatInfo.bpm);
+          const quantize = (t: number) => Math.round(t / beatSec) * beatSec;
+
+          const quantized: TimelineSegment[] = segments.map(s => ({
+            chord: s.chord,
+            startTime: Math.max(0, quantize(s.startTime)),
+            endTime: Math.max(quantize(s.endTime), quantize(s.startTime) + beatSec),
+            confidence: s.confidence
+          }));
+
+          // Merge adjacent segments with same chord and enforce minimum length
+          const merged: TimelineSegment[] = [];
+          for (const s of quantized) {
+            const last = merged[merged.length - 1];
+            if (last && last.chord === s.chord && Math.abs(last.endTime - s.startTime) <= 1e-3) {
+              // extend
+              last.endTime = Math.max(last.endTime, s.endTime);
+              last.confidence = Math.max(last.confidence, s.confidence);
+            } else {
+              merged.push({ ...s });
+            }
+          }
+
+          // Replace segments and notify callbacks
+          segments.length = 0;
+          for (const s of merged) {
+            // ensure min length of 1 beat
+            if (s.endTime - s.startTime < beatSec) s.endTime = s.startTime + beatSec;
+            segments.push(s);
+            this.callbacks.onSegmentAdded?.(s);
+          }
+
+          // Also publish a simple time signature to store/callbacks (assume 4/4)
+          try {
+            // If consumer provided onKeyDetected and onTempoDetected, they can pick up time signature via store
+            // We also call onKeyDetected for key and a separate callback for time signature isn't defined; use onTempoDetected for tempo only.
+          } catch {}
+        }
+      } catch (e) {
+        // ignore tempo/quantize failures
       }
 
       this.callbacks.onProcessingProgress?.(100);
